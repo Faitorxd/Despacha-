@@ -1,65 +1,110 @@
-import Image from "next/image";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
+export default async function Dashboard() {
+  const supabase = await createClient();
+  
+  // Fetch real data
+  const { count: totalProducts } = await supabase.from('products').select('*', { count: 'exact', head: true });
+  
+  // Supabase REST doesn't natively support querying WHERE col1 <= col2 easily without PostgREST or RPC.
+  // Instead we fetch all products and filter manually to avoid doing an RPC if they didn't run the RPC SQL.
+  const { data: allProducts } = await supabase.from('products').select('stock_current, stock_min');
+  const actualLowStock = allProducts ? allProducts.filter(p => p.stock_current <= p.stock_min).length : 0;
+
+  // Get start of month
+  const date = new Date();
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
+  
+  const { count: entriesCount } = await supabase
+    .from('inventory_movements')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', 'entrada')
+    .gte('created_at', firstDay);
+
+  const { count: exitsCount } = await supabase
+    .from('inventory_movements')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', 'salida')
+    .gte('created_at', firstDay);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex-1 space-y-8 p-8 pt-10">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm">Dashboard</h2>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">
+              Total Productos
+            </CardTitle>
+            <div className="h-10 w-10 bg-teal-500/20 rounded-full flex items-center justify-center">
+              <Package className="h-5 w-5 text-teal-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-white">{totalProducts || 0}</div>
+            <p className="text-xs text-slate-500 mt-1">
+              Catálogo activo
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">
+              Entradas (Mes)
+            </CardTitle>
+            <div className="h-10 w-10 bg-blue-500/20 rounded-full flex items-center justify-center">
+              <ArrowDownToLine className="h-5 w-5 text-blue-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-white">+{entriesCount || 0}</div>
+            <p className="text-xs text-slate-500 mt-1">
+              Movimientos recientes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-slate-300">
+              Salidas (Mes)
+            </CardTitle>
+            <div className="h-10 w-10 bg-rose-500/20 rounded-full flex items-center justify-center">
+              <ArrowUpFromLine className="h-5 w-5 text-rose-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-white">-{exitsCount || 0}</div>
+            <p className="text-xs text-slate-500 mt-1">
+              Movimientos recientes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900/50 border-rose-900/50 backdrop-blur-sm shadow-xl border overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 blur-3xl rounded-full -mr-16 -mt-16"></div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+            <CardTitle className="text-sm font-medium text-rose-300">
+              Stock Bajo
+            </CardTitle>
+            <div className="h-10 w-10 bg-rose-500/20 rounded-full flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-rose-400" />
+            </div>
+          </CardHeader>
+          <CardContent className="relative z-10">
+            <div className="text-3xl font-bold text-white">{actualLowStock}</div>
+            <p className="text-xs text-rose-400/80 mt-1">
+              Productos requieren atención
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
