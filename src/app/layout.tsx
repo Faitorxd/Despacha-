@@ -26,7 +26,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-slate-950 font-sans text-slate-50 flex h-full">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pt-14 pb-16 md:pt-0 md:pb-0">
           {children}
         </main>
         <Toaster theme="dark" position="top-right" />
