@@ -13,6 +13,7 @@ const navigation = [
   { name: "Armar Mercados", href: "/mercados", icon: Boxes },
   { name: "Despachos (Flota)", href: "/despachos", icon: Truck },
   { name: "Entradas", href: "/entradas", icon: ArrowDownToLine },
+  { name: "Salidas / Mermas", href: "/salidas", icon: ArrowUpFromLine },
   { name: "Cierre Mensual", href: "/cierre", icon: FileText },
 ];
 

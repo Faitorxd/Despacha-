@@ -28,10 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export default function SalidasPage() {
+  const supabase = createClient();
   const [movements, setMovements] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +61,7 @@ export default function SalidasPage() {
     // Fetch products for dropdown
     const { data: prods } = await supabase
       .from("products")
-      .select("id, name, sale_price, stock_current")
+      .select("id, name, cost_price, stock_current")
       .order("name", { ascending: true });
 
     if (mvtsErr) {
@@ -82,7 +83,7 @@ export default function SalidasPage() {
     setFormData({
       ...formData,
       product_id: val,
-      unit_cost: selectedProd ? selectedProd.sale_price : 0
+      unit_cost: selectedProd ? selectedProd.cost_price : 0
     });
   };
 
@@ -169,7 +170,7 @@ export default function SalidasPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="unit_cost">Precio Venta ($)</Label>
+                  <Label htmlFor="unit_cost">Costo Unitario ($)</Label>
                   <Input 
                     id="unit_cost" 
                     type="number" 
@@ -212,8 +213,8 @@ export default function SalidasPage() {
               <TableHead className="text-slate-400">Fecha</TableHead>
               <TableHead className="text-slate-400">Producto</TableHead>
               <TableHead className="text-slate-400">Cantidad</TableHead>
-              <TableHead className="text-slate-400">Precio de Venta</TableHead>
-              <TableHead className="text-slate-400 text-right">Total Facturado</TableHead>
+              <TableHead className="text-slate-400">Costo Unitario</TableHead>
+              <TableHead className="text-slate-400 text-right">Costo Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
