@@ -46,6 +46,19 @@ export default function DespachosPage() {
   const [selectedKits, setSelectedKits] = useState<{kit_id: string, name: string, quantity: number}[]>([]);
   const [currentKit, setCurrentKit] = useState({ kit_id: "", name: "", quantity: 1 });
 
+  const resetForm = () => {
+    setTruckPlate("");
+    setDriverName("");
+    setDestination("");
+    setSelectedKits([]);
+    setCurrentKit({ kit_id: "", name: "", quantity: 1 });
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) resetForm();
+    setIsDialogOpen(open);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     // Fetch dispatches history
@@ -186,10 +199,7 @@ export default function DespachosPage() {
     } else {
        toast.success("Camión despachado maravillosamente", { description: `Se descontaron ${movementsPayload.length} productos diferentes del almacén.` });
        setIsDialogOpen(false);
-       setTruckPlate("");
-       setDriverName("");
-       setDestination("");
-       setSelectedKits([]);
+       resetForm();
        fetchData();
     }
   };
@@ -202,7 +212,7 @@ export default function DespachosPage() {
           Despacho Logístico (Flotas)
         </h2>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger render={<Button className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.3)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Nuevo Despacho
           </DialogTrigger>
