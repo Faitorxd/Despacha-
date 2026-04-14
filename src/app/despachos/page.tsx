@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Truck, Plus, CheckCircle2, History } from "lucide-react";
+import { Truck, Plus, CheckCircle2, History, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,7 @@ export default function DespachosPage() {
   const [truckPlate, setTruckPlate] = useState("");
   const [driverName, setDriverName] = useState("");
   const [destination, setDestination] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const [selectedKits, setSelectedKits] = useState<{kit_id: string, name: string, quantity: number}[]>([]);
   const [currentKit, setCurrentKit] = useState({ kit_id: "", name: "", quantity: 1 });
@@ -52,6 +53,7 @@ export default function DespachosPage() {
     setDestination("");
     setSelectedKits([]);
     setCurrentKit({ kit_id: "", name: "", quantity: 1 });
+    setEditingId(null);
   };
 
   const handleDialogOpenChange = (open: boolean) => {
@@ -122,6 +124,27 @@ export default function DespachosPage() {
 
   const handleDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (editingId) {
+       // Only update metadata
+       if (!truckPlate) return toast.error("Datos incompletos", { description: "La placa es obligatoria." });
+       const { error } = await supabase.from("dispatches").update({
+          truck_plate: truckPlate,
+          driver_name: driverName,
+          destination: destination
+       }).eq("id", editingId);
+
+       if (error) {
+          toast.error("Error al actualizar despacho", { description: error.message });
+       } else {
+          toast.success("Despacho actualizado", { description: "Los detalles de envío han sido guardados."});
+          setIsDialogOpen(false);
+          resetForm();
+          fetchData();
+       }
+       return;
+    }
+
     if (!truckPlate || selectedKits.length === 0) {
        return toast.error("Datos incompletos", { description: "Debe haber una placa y al menos un mercado agregado." });
     }
@@ -218,9 +241,13 @@ export default function DespachosPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] bg-slate-900 border-slate-800 text-slate-200">
             <DialogHeader>
-              <DialogTitle className="text-xl text-white">Generar Despacho a Camión</DialogTitle>
+              <DialogTitle className="text-xl text-white">
+                {editingId ? "Editar Despacho" : "Generar Despacho a Camión"}
+              </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Selecciona la flota y los mercados ICBF que se enviarán. El stock se deducirá automáticamente.
+                {editingId 
+                  ? "Modifica los detalles logísticos del envío. Los kits no se pueden editar."
+                  : "Selecciona la flota y los mercados ICBF que se enviarán. El stock se deducirá automáticamente."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleDispatch} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
@@ -259,53 +286,62 @@ export default function DespachosPage() {
               </div>
 
               {/* Kits Selector */}
-              <div className="mt-2 p-4 border border-slate-800 rounded-lg bg-slate-950/50">
-                <h4 className="text-sm font-semibold text-slate-300 mb-3">Carga del Camión (Kits ICBF)</h4>
-                
-                <div className="flex gap-2 items-end mb-4">
-                  <div className="flex-1">
-                    <Select onValueChange={handleKitSelect} value={currentKit.kit_id}>
-                      <SelectTrigger className="bg-slate-900 border-slate-800">
-                        <SelectValue placeholder="Seleccionar mercado..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-slate-800 text-white">
-                        {kits.map(k => (
-                          <SelectItem key={k.id} value={k.id} className="focus:bg-slate-800">
-                            {k.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-24">
-                    <Input 
-                        type="number" min="1" 
-                        className="bg-slate-900 border-slate-800" 
-                        value={currentKit.quantity}
-                        onChange={(e) => setCurrentKit({...currentKit, quantity: parseInt(e.target.value) || 1})}
-                    />
-                  </div>
-                  <Button type="button" onClick={handleAddKitToDispatch} variant="secondary" className="bg-slate-800 hover:bg-slate-700 text-white">
-                    Subir a Flota
-                  </Button>
-                </div>
-
-                {selectedKits.length > 0 ? (
-                    <div className="space-y-2">
-                      {selectedKits.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-slate-900 p-3 rounded text-sm border border-slate-800">
-                           <span className="text-slate-200 font-medium">{item.name}</span>
-                           <span className="font-bold text-amber-500">{item.quantity} unidades</span>
-                        </div>
-                      ))}
+              {!editingId && (
+                <div className="mt-2 p-4 border border-slate-800 rounded-lg bg-slate-950/50">
+                  <h4 className="text-sm font-semibold text-slate-300 mb-3">Carga del Camión (Kits ICBF)</h4>
+                  
+                  <div className="flex gap-2 items-end mb-4">
+                    <div className="flex-1">
+                      <Select onValueChange={handleKitSelect} value={currentKit.kit_id}>
+                        <SelectTrigger className="bg-slate-900 border-slate-800">
+                          <SelectValue placeholder="Seleccionar mercado..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                          {kits.map(k => (
+                            <SelectItem key={k.id} value={k.id} className="focus:bg-slate-800">
+                              {k.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                ) : (
-                    <p className="text-xs text-slate-500 text-center py-2">El camión está vacío.</p>
-                )}
-              </div>
+                    <div className="w-24">
+                      <Input 
+                          type="number" min="1" 
+                          className="bg-slate-900 border-slate-800" 
+                          value={currentKit.quantity}
+                          onChange={(e) => setCurrentKit({...currentKit, quantity: parseInt(e.target.value) || 1})}
+                      />
+                    </div>
+                    <Button type="button" onClick={handleAddKitToDispatch} variant="secondary" className="bg-slate-800 hover:bg-slate-700 text-white">
+                      Subir a Flota
+                    </Button>
+                  </div>
 
-              <Button type="submit" className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold" disabled={!truckPlate || selectedKits.length === 0}>
-                 Confirmar Despacho
+                  {selectedKits.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedKits.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-slate-900 p-3 rounded text-sm border border-slate-800">
+                             <span className="text-slate-200 font-medium">{item.name}</span>
+                             <span className="font-bold text-amber-500">{item.quantity} unidades</span>
+                          </div>
+                        ))}
+                      </div>
+                  ) : (
+                      <p className="text-xs text-slate-500 text-center py-2">El camión está vacío.</p>
+                  )}
+                </div>
+              )}
+
+              {editingId && (
+                <div className="mt-2 p-4 border border-slate-800 rounded-lg bg-slate-950/50">
+                   <h4 className="text-sm font-semibold text-slate-400">Modificación de stock desactivada</h4>
+                   <p className="text-xs text-slate-500 mt-1">Por seguridad, para modificar los productos que lleva un camión, debe crear uno nuevo.</p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold" disabled={!truckPlate || (!editingId && selectedKits.length === 0)}>
+                 {editingId ? "Actualizar Datos de Flota" : "Confirmar Despacho"}
               </Button>
             </form>
           </DialogContent>
@@ -325,16 +361,17 @@ export default function DespachosPage() {
               <TableHead className="text-slate-400">Conductor</TableHead>
               <TableHead className="text-slate-400">Destino</TableHead>
               <TableHead className="text-slate-400 text-right">Carga Transportada</TableHead>
+              <TableHead className="text-slate-400 text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">Cargando bitácora...</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-500">Cargando bitácora...</TableCell>
               </TableRow>
             ) : dispatches.length === 0 ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">No hay despachos registrados aún.</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-500">No hay despachos registrados aún.</TableCell>
               </TableRow>
             ) : (
               dispatches.map((disp) => (
@@ -355,6 +392,17 @@ export default function DespachosPage() {
                       {disp.dispatch_items?.map((di: any, i: number) => (
                          <div key={i}><span className="text-amber-500 font-bold">{di.quantity}x</span> {di.kits?.name}</div>
                       ))}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => {
+                        setTruckPlate(disp.truck_plate);
+                        setDriverName(disp.driver_name || "");
+                        setDestination(disp.destination || "");
+                        setEditingId(disp.id);
+                        setIsDialogOpen(true);
+                    }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

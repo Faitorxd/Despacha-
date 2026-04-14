@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, ArrowDownToLine, Package, Calendar } from "lucide-react";
+import { Plus, ArrowDownToLine, Package, Calendar, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ export default function EntradasPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const supabase = createClient();
   
   const [formData, setFormData] = useState({
@@ -102,15 +103,54 @@ export default function EntradasPage() {
       reason: formData.reason
     };
 
-    const { error } = await supabase.from("inventory_movements").insert([payload]);
+    if (editingId) {
+      const oldMovement = movements.find(m => m.id === editingId);
+      if (oldMovement) {
+        if (oldMovement.product_id !== formData.product_id) {
+          // Subtract old quantity from old product
+          const { data: oldProd } = await supabase.from("products").select("stock_current").eq("id", oldMovement.product_id).single();
+          if (oldProd) {
+            await supabase.from("products").update({ stock_current: oldProd.stock_current - oldMovement.quantity }).eq("id", oldMovement.product_id);
+          }
+          // Add new quantity to new product
+          const { data: newProd } = await supabase.from("products").select("stock_current").eq("id", formData.product_id).single();
+          if (newProd) {
+            await supabase.from("products").update({ stock_current: newProd.stock_current + formData.quantity }).eq("id", formData.product_id);
+          }
+        } else {
+          // Same product, adjust difference
+          const diff = formData.quantity - oldMovement.quantity;
+          if (diff !== 0) {
+            const { data: prodData } = await supabase.from("products").select("stock_current").eq("id", formData.product_id).single();
+            if (prodData) {
+              await supabase.from("products").update({ stock_current: prodData.stock_current + diff }).eq("id", formData.product_id);
+            }
+          }
+        }
+      }
 
-    if (error) {
-      toast.error("Error al registrar entrada", { description: error.message });
+      const { error } = await supabase.from("inventory_movements").update(payload).eq("id", editingId);
+
+      if (error) {
+        toast.error("Error al actualizar entrada", { description: error.message });
+      } else {
+        toast.success("Entrada y stock actualizados", { description: "El stock se ajustó a la nueva cantidad automáticamente."});
+        setIsDialogOpen(false);
+        setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+        setEditingId(null);
+        fetchData();
+      }
     } else {
-      toast.success("Entrada registrada", { description: "El stock se ha actualizado automáticamente."});
-      setIsDialogOpen(false);
-      setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
-      fetchData();
+      const { error } = await supabase.from("inventory_movements").insert([payload]);
+
+      if (error) {
+        toast.error("Error al registrar entrada", { description: error.message });
+      } else {
+        toast.success("Entrada registrada", { description: "El stock se ha actualizado automáticamente."});
+        setIsDialogOpen(false);
+        setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+        fetchData();
+      }
     }
   };
 
@@ -122,15 +162,23 @@ export default function EntradasPage() {
           Registro de Entradas
         </h2>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            setEditingId(null);
+            setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+          }
+          setIsDialogOpen(open);
+        }}>
           <DialogTrigger render={<Button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold shadow-[0_0_20px_rgba(59,130,246,0.3)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Registrar Entrada
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-slate-200">
             <DialogHeader>
-              <DialogTitle className="text-xl text-white">Nueva Entrada al Stock</DialogTitle>
+              <DialogTitle className="text-xl text-white">
+                {editingId ? "Editar Entrada" : "Nueva Entrada al Stock"}
+              </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Registra la recepción de mercancía.
+                {editingId ? "Modifica los valores de la entrada." : "Registra la recepción de mercancía."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSaveMovement} className="grid gap-4 py-4">
@@ -195,7 +243,9 @@ export default function EntradasPage() {
                 </span>
               </div>
 
-              <Button type="submit" className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold">Confirmar Entrada</Button>
+              <Button type="submit" className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold">
+                {editingId ? "Actualizar Entrada" : "Confirmar Entrada"}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -210,16 +260,17 @@ export default function EntradasPage() {
               <TableHead className="text-slate-400">Cantidad</TableHead>
               <TableHead className="text-slate-400">Costo Unit.</TableHead>
               <TableHead className="text-slate-400 text-right">Costo Total</TableHead>
+              <TableHead className="text-slate-400 text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">Cargando entradas...</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-500">Cargando entradas...</TableCell>
               </TableRow>
             ) : movements.length === 0 ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={5} className="h-24 text-center text-slate-500">No hay entradas generadas recientemente.</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-500">No hay entradas generadas recientemente.</TableCell>
               </TableRow>
             ) : (
               movements.map((mov) => (
@@ -244,6 +295,20 @@ export default function EntradasPage() {
                   </TableCell>
                   <TableCell className="text-right font-semibold text-white">
                     ${mov.total?.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => {
+                        setFormData({
+                            product_id: mov.product_id,
+                            quantity: mov.quantity,
+                            unit_cost: mov.unit_cost,
+                            reason: mov.reason || ""
+                        });
+                        setEditingId(mov.id);
+                        setIsDialogOpen(true);
+                    }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

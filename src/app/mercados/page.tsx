@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Boxes, Layers, Trash2 } from "lucide-react";
+import { Plus, Boxes, Layers, Trash2, Pencil, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,20 @@ export default function MercadosPage() {
   const [kitDesc, setKitDesc] = useState("");
   const [selectedItems, setSelectedItems] = useState<{product_id: string, name: string, quantity: number}[]>([]);
   const [currentItem, setCurrentItem] = useState({ product_id: "", name: "", quantity: 1 });
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setKitName("");
+    setKitDesc("");
+    setSelectedItems([]);
+    setCurrentItem({ product_id: "", name: "", quantity: 1 });
+    setEditingId(null);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) resetForm();
+    setIsDialogOpen(open);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -52,8 +66,9 @@ export default function MercadosPage() {
       .select(`
         id, name, description, created_at,
         kit_items (
+          product_id,
           quantity,
-          products (name, unit)
+          products (id, name, unit)
         )
       `)
       .order("created_at", { ascending: false });
@@ -112,34 +127,74 @@ export default function MercadosPage() {
     if (!kitName) return toast.error("Por favor asigna un nombre al Mercado.");
     if (selectedItems.length === 0) return toast.error("El Mercado debe contener al menos 1 producto.");
 
-    // 1. Insert Kit details
-    const { data: newKit, error: kitErr } = await supabase
-      .from("kits")
-      .insert([{ name: kitName, description: kitDesc }])
-      .select()
-      .single();
+    if (editingId) {
+      // 1. Update Kit details
+      const { error: kitErr } = await supabase
+        .from("kits")
+        .update({ name: kitName, description: kitDesc })
+        .eq("id", editingId);
 
-    if (kitErr) {
-      return toast.error("Error creando el Mercado", { description: kitErr.message });
-    }
+      if (kitErr) return toast.error("Error actualizando el Mercado", { description: kitErr.message });
 
-    // 2. Insert Kit Items recipes
-    const itemsToInsert = selectedItems.map(item => ({
-      kit_id: newKit.id,
-      product_id: item.product_id,
-      quantity: item.quantity
-    }));
+      // 2. Delete old kit items
+      await supabase.from("kit_items").delete().eq("kit_id", editingId);
 
-    const { error: itemsErr } = await supabase.from("kit_items").insert(itemsToInsert);
+      // 3. Insert new kit items
+      const itemsToInsert = selectedItems.map(item => ({
+        kit_id: editingId,
+        product_id: item.product_id,
+        quantity: item.quantity
+      }));
+      const { error: itemsErr } = await supabase.from("kit_items").insert(itemsToInsert);
 
-    if (itemsErr) {
-      toast.error("Advertencia: El Mercado se creó pero sus productos fallaron.", { description: itemsErr.message });
+      if (itemsErr) {
+        toast.error("Advertencia: El Mercado se actualizó pero sus productos fallaron.", { description: itemsErr.message });
+      } else {
+        toast.success("Mercado actualizado exitosamente.");
+        setIsDialogOpen(false);
+        resetForm();
+        fetchData();
+      }
     } else {
-      toast.success("Mercado creado exitosamente.");
-      setIsDialogOpen(false);
-      setKitName("");
-      setKitDesc("");
-      setSelectedItems([]);
+      // 1. Insert Kit details
+      const { data: newKit, error: kitErr } = await supabase
+        .from("kits")
+        .insert([{ name: kitName, description: kitDesc }])
+        .select()
+        .single();
+
+      if (kitErr) {
+        return toast.error("Error creando el Mercado", { description: kitErr.message });
+      }
+
+      // 2. Insert Kit Items recipes
+      const itemsToInsert = selectedItems.map(item => ({
+        kit_id: newKit.id,
+        product_id: item.product_id,
+        quantity: item.quantity
+      }));
+
+      const { error: itemsErr } = await supabase.from("kit_items").insert(itemsToInsert);
+
+      if (itemsErr) {
+        toast.error("Advertencia: El Mercado se creó pero sus productos fallaron.", { description: itemsErr.message });
+      } else {
+        toast.success("Mercado creado exitosamente.");
+        setIsDialogOpen(false);
+        resetForm();
+        fetchData();
+      }
+    }
+  };
+
+  const handleDeleteKit = async (id: string, name: string) => {
+    if (!window.confirm(`¿Seguro que deseas eliminar el mercado "${name}"? Esta acción no se puede deshacer.`)) return;
+    
+    const { error } = await supabase.from("kits").delete().eq("id", id);
+    if (error) {
+      toast.error("Error al eliminar", { description: error.message });
+    } else {
+      toast.success("Mercado eliminado exitosamente");
       fetchData();
     }
   };
@@ -152,15 +207,17 @@ export default function MercadosPage() {
           Armado de Mercados
         </h2>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger render={<Button className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-semibold shadow-[0_0_20px_rgba(217,70,239,0.3)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Crear Mercado Base
           </DialogTrigger>
           <DialogContent className="sm:max-w-[550px] bg-slate-900 border-slate-800 text-slate-200">
             <DialogHeader>
-              <DialogTitle className="text-xl text-white">Configurar Nuevo Mercado (Ensamblaje)</DialogTitle>
+              <DialogTitle className="text-xl text-white">
+                {editingId ? "Editar Mercado (Ensamblaje)" : "Configurar Nuevo Mercado (Ensamblaje)"}
+              </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Añade los productos que componen una unidad de este "Mercado".
+                {editingId ? "Modifica los productos que componen este mercado." : "Añade los productos que componen una unidad de este 'Mercado'."}
               </DialogDescription>
             </DialogHeader>
             
@@ -241,7 +298,7 @@ export default function MercadosPage() {
             </div>
             
             <Button onClick={handleSaveKit} className="w-full mt-2 bg-fuchsia-500 hover:bg-fuchsia-600 text-white font-bold disabled:opacity-50" disabled={selectedItems.length === 0 || !kitName}>
-               Guardar Plantilla de Mercado
+               {editingId ? "Actualizar Plantilla de Mercado" : "Guardar Plantilla de Mercado"}
             </Button>
           </DialogContent>
         </Dialog>
@@ -259,9 +316,42 @@ export default function MercadosPage() {
         ) : (
           kits.map((kit) => (
             <div key={kit.id} className="rounded-xl border border-slate-800 bg-slate-900/50 backdrop-blur-xl shrink-0 overflow-hidden shadow-2xl flex flex-col">
-              <div className="p-5 border-b border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950">
-                 <h3 className="text-xl font-bold text-white mb-1">{kit.name}</h3>
-                 <p className="text-sm text-slate-400">{kit.description || "Sin descripción"}</p>
+              <div className="p-5 border-b border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 flex justify-between items-start">
+                 <div>
+                   <h3 className="text-xl font-bold text-white mb-1">{kit.name}</h3>
+                   <p className="text-sm text-slate-400">{kit.description || "Sin descripción"}</p>
+                 </div>
+                 <div className="flex items-center gap-1">
+                   <Button variant="ghost" size="icon" title="Duplicar Mercado" className="h-8 w-8 text-fuchsia-400 hover:text-fuchsia-300 hover:bg-fuchsia-500/10" onClick={() => {
+                      setKitName(kit.name + " (Copiar)");
+                      setKitDesc(kit.description || "");
+                      setSelectedItems(kit.kit_items.map((item: any) => ({
+                         product_id: item.product_id,
+                         name: item.products.name,
+                         quantity: item.quantity
+                      })));
+                      setEditingId(null);  // null indicates it's a new kit creation, not an edit!
+                      setIsDialogOpen(true);
+                   }}>
+                     <Copy className="h-4 w-4" />
+                   </Button>
+                   <Button variant="ghost" size="icon" title="Editar Mercado" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => {
+                      setKitName(kit.name);
+                      setKitDesc(kit.description || "");
+                      setSelectedItems(kit.kit_items.map((item: any) => ({
+                         product_id: item.product_id,
+                         name: item.products.name,
+                         quantity: item.quantity
+                      })));
+                      setEditingId(kit.id);
+                      setIsDialogOpen(true);
+                   }}>
+                     <Pencil className="h-4 w-4" />
+                   </Button>
+                   <Button variant="ghost" size="icon" title="Eliminar Mercado" className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10" onClick={() => handleDeleteKit(kit.id, kit.name)}>
+                     <Trash2 className="h-4 w-4" />
+                   </Button>
+                 </div>
               </div>
               <div className="p-5 flex-1">
                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Contenido Unitario:</h4>

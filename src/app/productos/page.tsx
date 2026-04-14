@@ -30,6 +30,7 @@ export default function ProductosPage() {
   const [productos, setProductos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const supabase = createClient();
   
   // Form state
@@ -38,7 +39,8 @@ export default function ProductosPage() {
     category: "",
     unit: "unidad",
     stock_min: 0,
-    cost_price: 0
+    cost_price: 0,
+    stock_current: 0
   });
 
   const fetchProductos = async () => {
@@ -62,15 +64,37 @@ export default function ProductosPage() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("products").insert([formData]);
+    
+    if (editingId) {
+      const { error } = await supabase.from("products").update({
+        name: formData.name,
+        category: formData.category,
+        unit: formData.unit,
+        stock_min: formData.stock_min,
+        cost_price: formData.cost_price,
+        stock_current: formData.stock_current
+      }).eq("id", editingId);
 
-    if (error) {
-      toast.error("Error al guardar", { description: error.message });
+      if (error) {
+        toast.error("Error al actualizar", { description: error.message });
+      } else {
+        toast.success("Producto actualizado exitosamente");
+        setIsDialogOpen(false);
+        setFormData({ name: "", category: "", unit: "unidad", stock_min: 0, cost_price: 0, stock_current: 0 });
+        setEditingId(null);
+        fetchProductos();
+      }
     } else {
-      toast.success("Producto creado exitosamente");
-      setIsDialogOpen(false);
-      setFormData({ name: "", category: "", unit: "unidad", stock_min: 0, cost_price: 0 });
-      fetchProductos();
+      const { error } = await supabase.from("products").insert([formData]);
+
+      if (error) {
+        toast.error("Error al guardar", { description: error.message });
+      } else {
+        toast.success("Producto creado exitosamente");
+        setIsDialogOpen(false);
+        setFormData({ name: "", category: "", unit: "unidad", stock_min: 0, cost_price: 0, stock_current: 0 });
+        fetchProductos();
+      }
     }
   };
 
@@ -113,15 +137,23 @@ export default function ProductosPage() {
           Catálogo de Productos
         </h2>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            setEditingId(null);
+            setFormData({ name: "", category: "", unit: "unidad", stock_min: 0, cost_price: 0, stock_current: 0 });
+          }
+          setIsDialogOpen(open);
+        }}>
           <DialogTrigger render={<Button className="bg-teal-500 hover:bg-teal-600 text-slate-900 font-semibold shadow-[0_0_20px_rgba(20,184,166,0.3)]" />}>
             <Plus className="mr-2 h-4 w-4" /> Nuevo Producto
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-slate-200">
             <DialogHeader>
-              <DialogTitle className="text-xl text-white">Añadir Producto</DialogTitle>
+              <DialogTitle className="text-xl text-white">
+                {editingId ? "Editar Producto" : "Añadir Producto"}
+              </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Registra un nuevo producto en tu inventario.
+                {editingId ? "Modifica los detalles del producto." : "Registra un nuevo producto en tu inventario."}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSaveProduct} className="grid gap-4 py-4">
@@ -181,7 +213,25 @@ export default function ProductosPage() {
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full mt-4 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold">Guardar Producto</Button>
+              {editingId && (
+                <div className="grid gap-2 mt-2 p-3 border border-amber-500/20 bg-amber-500/5 rounded-md">
+                  <Label htmlFor="stock_current" className="text-amber-400 font-semibold flex items-center justify-between">
+                    <span>Ajuste de Stock Manual</span>
+                    <span className="text-xs font-normal">¡Cuidado! Úsalo solo para corregir desfaces</span>
+                  </Label>
+                  <Input 
+                    id="stock_current" 
+                    type="number" 
+                    className="bg-slate-950 border-amber-500/30 focus-visible:ring-amber-500/50" 
+                    value={Number.isNaN(formData.stock_current) ? "" : formData.stock_current}
+                    onChange={(e) => setFormData({...formData, stock_current: e.target.value === "" ? 0 : parseInt(e.target.value, 10)})}
+                    required 
+                  />
+                </div>
+              )}
+              <Button type="submit" className="w-full mt-4 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold">
+                {editingId ? "Actualizar Producto" : "Guardar Producto"}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -239,7 +289,18 @@ export default function ProductosPage() {
                     {prod.cost_price?.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => {toast.info('Editar próximamente...')}}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-white" onClick={() => {
+                      setFormData({
+                        name: prod.name,
+                        category: prod.category,
+                        unit: prod.unit,
+                        stock_min: prod.stock_min,
+                        cost_price: prod.cost_price || 0,
+                        stock_current: prod.stock_current || 0
+                      });
+                      setEditingId(prod.id);
+                      setIsDialogOpen(true);
+                    }}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10" onClick={() => handleDelete(prod.id, prod.name)}>
