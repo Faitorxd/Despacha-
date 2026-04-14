@@ -43,6 +43,7 @@ export default function EntradasPage() {
     product_id: "",
     quantity: 1,
     unit_cost: 0,
+    total_cost: 0,
     reason: ""
   });
 
@@ -136,7 +137,7 @@ export default function EntradasPage() {
       } else {
         toast.success("Entrada y stock actualizados", { description: "El stock se ajustó a la nueva cantidad automáticamente."});
         setIsDialogOpen(false);
-        setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+        setFormData({ product_id: "", quantity: 1, unit_cost: 0, total_cost: 0, reason: "" });
         setEditingId(null);
         fetchData();
       }
@@ -148,7 +149,7 @@ export default function EntradasPage() {
       } else {
         toast.success("Entrada registrada", { description: "El stock se ha actualizado automáticamente."});
         setIsDialogOpen(false);
-        setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+        setFormData({ product_id: "", quantity: 1, unit_cost: 0, total_cost: 0, reason: "" });
         fetchData();
       }
     }
@@ -165,7 +166,7 @@ export default function EntradasPage() {
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           if (!open) {
             setEditingId(null);
-            setFormData({ product_id: "", quantity: 1, unit_cost: 0, reason: "" });
+            setFormData({ product_id: "", quantity: 1, unit_cost: 0, total_cost: 0, reason: "" });
           }
           setIsDialogOpen(open);
         }}>
@@ -207,22 +208,46 @@ export default function EntradasPage() {
                     min="1"
                     className="bg-slate-950 border-slate-800" 
                     value={Number.isNaN(formData.quantity) ? "" : formData.quantity}
-                    onChange={(e) => setFormData({...formData, quantity: e.target.value === "" ? 0 : parseInt(e.target.value, 10)})}
+                    onChange={(e) => {
+                      const qty = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                      setFormData({...formData, quantity: qty, unit_cost: formData.total_cost > 0 && qty > 0 ? formData.total_cost / qty : formData.unit_cost});
+                    }}
                     required 
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="unit_cost">Costo Unitario ($)</Label>
+                  <Label htmlFor="total_cost">Costo Total ($) <span className="text-xs text-slate-500">(Factura)</span></Label>
+                  <Input 
+                    id="total_cost" 
+                    type="number" 
+                    min="0"
+                    step="any"
+                    className="bg-slate-950 border-slate-800" 
+                    value={Number.isNaN(formData.total_cost) || formData.total_cost === 0 ? "" : formData.total_cost}
+                    onChange={(e) => {
+                      const total = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                      setFormData({
+                        ...formData, 
+                        total_cost: total, 
+                        unit_cost: formData.quantity > 0 ? total / formData.quantity : 0
+                      });
+                    }}
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2 mt-2">
+                  <Label htmlFor="unit_cost" className="text-slate-400">Costo Unitario Calculado</Label>
                   <Input 
                     id="unit_cost" 
                     type="number" 
                     min="0"
-                    className="bg-slate-950 border-slate-800" 
-                    value={Number.isNaN(formData.unit_cost) || formData.unit_cost === 0 ? "" : formData.unit_cost}
-                    onChange={(e) => setFormData({...formData, unit_cost: e.target.value === "" ? 0 : parseInt(e.target.value, 10)})}
-                    required 
+                    step="any"
+                    disabled
+                    className="bg-slate-900 border-slate-800 text-slate-500" 
+                    value={formData.unit_cost}
                   />
-                </div>
               </div>
               
               <div className="grid gap-2">
@@ -302,6 +327,7 @@ export default function EntradasPage() {
                             product_id: mov.product_id,
                             quantity: mov.quantity,
                             unit_cost: mov.unit_cost,
+                            total_cost: mov.total,
                             reason: mov.reason || ""
                         });
                         setEditingId(mov.id);

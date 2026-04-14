@@ -195,9 +195,10 @@ export default function ProductosPage() {
                   <Input 
                     id="cost_price" 
                     type="number" 
+                    step="any"
                     className="bg-slate-950 border-slate-800" 
                     value={Number.isNaN(formData.cost_price) || formData.cost_price === 0 ? "" : formData.cost_price}
-                    onChange={(e) => setFormData({...formData, cost_price: e.target.value === "" ? 0 : parseInt(e.target.value, 10)})}
+                    onChange={(e) => setFormData({...formData, cost_price: e.target.value === "" ? 0 : parseFloat(e.target.value)})}
                     required 
                   />
                 </div>
