@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, ArrowDownToLine, Package, Calendar, Pencil } from "lucide-react";
+import { Plus, ArrowDownToLine, Package, Calendar, Pencil, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,9 @@ export default function EntradasPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const supabase = createClient();
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   
   const [formData, setFormData] = useState({
     product_id: "",
@@ -78,6 +81,18 @@ export default function EntradasPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const filteredMovements = movements.filter(m => {
+    const itemName = m.products ? m.products.name : "Producto Eliminado";
+    const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // m.created_at starts with YYYY-MM-DD
+    const matchesDate = dateFilter 
+      ? m.created_at.startsWith(dateFilter) 
+      : true;
+
+    return matchesSearch && matchesDate;
+  });
 
   const handleProductSelect = (val: string | null) => {
     if (!val) return;
@@ -277,6 +292,37 @@ export default function EntradasPage() {
       </div>
 
       <div className="rounded-md border border-slate-800 bg-slate-900/50 backdrop-blur-xl shrink-0 overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-slate-800 flex flex-wrap gap-4 items-center">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+            <Input
+              placeholder="Buscar por producto..."
+              className="pl-9 bg-slate-950 border-slate-800 text-slate-300 ring-offset-slate-950 placeholder:text-slate-600"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 relative">
+            <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 pointer-events-none" />
+            <Input 
+              type="date"
+              className="pl-9 bg-slate-950 border-slate-800 text-slate-300 ring-offset-slate-950 w-[180px]"
+              style={{ colorScheme: 'dark' }}
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+            />
+            {dateFilter && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 px-2 text-xs text-slate-400 hover:text-white"
+                onClick={() => setDateFilter("")}
+              >
+                Limpiar fecha
+              </Button>
+            )}
+          </div>
+        </div>
         <Table>
           <TableHeader className="bg-slate-900">
             <TableRow className="border-slate-800 hover:bg-transparent">
@@ -293,12 +339,14 @@ export default function EntradasPage() {
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
                 <TableCell colSpan={6} className="h-24 text-center text-slate-500">Cargando entradas...</TableCell>
               </TableRow>
-            ) : movements.length === 0 ? (
+            ) : filteredMovements.length === 0 ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={6} className="h-24 text-center text-slate-500">No hay entradas generadas recientemente.</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                  {movements.length > 0 ? "No hay coincidencias con tu búsqueda." : "No hay entradas generadas recientemente."}
+                </TableCell>
               </TableRow>
             ) : (
-              movements.map((mov) => (
+              filteredMovements.map((mov) => (
                 <TableRow key={mov.id} className="border-slate-800 hover:bg-slate-800/50 transition-colors">
                   <TableCell className="text-slate-400">
                     <div className="flex items-center gap-2">

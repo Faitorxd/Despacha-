@@ -28,6 +28,7 @@ import * as XLSX from "xlsx";
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -42,6 +43,11 @@ export default function ProductosPage() {
     cost_price: 0,
     stock_current: 0
   });
+
+  const filteredProductos = productos.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const fetchProductos = async () => {
     setLoading(true);
@@ -242,9 +248,11 @@ export default function ProductosPage() {
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <div className="relative w-72">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-            <Input
+          <Input
               placeholder="Buscar productos..."
               className="pl-9 bg-slate-950 border-slate-800 text-slate-300 ring-offset-slate-950 placeholder:text-slate-600"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <Button onClick={exportToExcel} variant="outline" className="border-teal-500/50 text-teal-400 hover:bg-teal-500/10 hover:text-teal-300">
@@ -265,12 +273,12 @@ export default function ProductosPage() {
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
                 <TableCell colSpan={4} className="h-24 text-center text-slate-500">Cargando catálogo...</TableCell>
               </TableRow>
-            ) : productos.length === 0 ? (
+            ) : filteredProductos.length === 0 ? (
               <TableRow className="border-slate-800 hover:bg-slate-800/50">
-                <TableCell colSpan={4} className="h-24 text-center text-slate-500">No hay productos registrados. Crea uno nuevo.</TableCell>
+                <TableCell colSpan={4} className="h-24 text-center text-slate-500">No se encontraron productos.</TableCell>
               </TableRow>
             ) : (
-              productos.map((prod) => (
+              filteredProductos.map((prod) => (
                 <TableRow key={prod.id} className="border-slate-800 hover:bg-slate-800/50 transition-colors">
                   <TableCell className="font-medium text-slate-200">
                     {prod.name}
